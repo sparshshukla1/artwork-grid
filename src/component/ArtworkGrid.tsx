@@ -1,103 +1,112 @@
-import { useEffect, useState, type SetStateAction } from 'react';
+import { useEffect, useState } from 'react';
 import { DataTable } from 'primereact/datatable';
 import { Column } from 'primereact/column';
-import { InputText } from 'primereact/inputtext';
+import { InputNumber } from 'primereact/inputnumber';
 import { Button } from 'primereact/button';
-import { retrieveArtworks } from '../utils/fetcher';
-import type { ArtData } from '../types/artwork';
 
-const items_in_page = 10;
+import { retrieveArtworks } from '../utils/fetcher';
+import { type ArtData } from '../types/artwork';
+
+const itemsPerPage = 10;
 
 const ArtworkGrid = () => {
-  const [artList, setArtList] = useState<ArtData[]>([]);
-  const [selected, setSelected] = useState<ArtData[]>([]);
-  const [total, setTotal] = useState(0);
+  const [entries, setEntries] = useState<ArtData[]>([]);
   const [currentPage, setCurrentPage] = useState(0);
-  const [pageCache, setPageCache] = useState<Record<number, ArtData[]>>({});
-  const [selectCount, setSelectCount] = useState('');
+  const [totalItems, setTotalItems] = useState(0);
+  const [selectedItems, setSelectedItems] = useState<Record<number, ArtData>>({});
+  const [selectionCount, setSelectionCount] = useState<number | null>(null);
 
+  // Fetch artworks whenever the page changes
   useEffect(() => {
     loadPage(currentPage + 1);
   }, [currentPage]);
 
-  const loadPage = async (page: number) => {
- 
-    if (pageCache[page]) {
-      setArtList(pageCache[page]);
-      return;
-    }
+  const loadPage = async (pageNum: number) => {
+    const response = await retrieveArtworks(pageNum);
+    setEntries(response.data);
+    setTotalItems(response.pagination.total);
 
-    const response = await retrieveArtworks(page);
-    const updatedCache = { ...pageCache, [page]: response.data };
+  const updated: Record<number, ArtData> = {};
+for (const item of response.data) {
+  if (selectedItems && selectedItems[item.id]) {
+    updated[item.id] = item;
+  }
+}
 
-    setPageCache(updatedCache);
-    setArtList(response.data);
-    setTotal(response.pagination.total);
+    setSelectedItems(prev => ({ ...prev, ...updated }));
   };
 
+  const handleRowSelect = (e: any) => {
+    const updated = { ...selectedItems };
+    const currentIds = entries.map((item) => item.id);
 
-  const handleSelect = async () => {
-    const count = parseInt(selectCount, 10);
-    if (isNaN(count) || count <= 0) return;
+    // Remove selections from current page
+    currentIds.forEach((id) => delete updated[id]);
 
-    const requiredPages = Math.ceil(count / items_in_page);
-    const missingPages: number[] = [];
+    // Add newly selected items
+    if (Array.isArray(e.value)) {
+      e.value.forEach((item: ArtData) => {
+        updated[item.id] = item;
+      });
+    }
 
-    for (let i = 1; i <= requiredPages; i++) {
-      if (!pageCache[i]) {
-        missingPages.push(i);
+    setSelectedItems(updated);
+  };
+
+  const getSelectedEntries = () => {
+    return entries.filter((item) => selectedItems[item.id]);
+  };
+const handleAutoSelect = async () => {
+  if (!selectionCount || selectionCount <= 0) return;
+
+  const pagesToFetch = Math.ceil(selectionCount / itemsPerPage);
+  const selected: Record<number, ArtData> = {};
+  let totalSelected = 0;
+
+  for (let page = 1; page <= pagesToFetch && totalSelected < selectionCount; page++) {
+    const response = await retrieveArtworks(page);
+
+    for (const item of response.data) {
+      if (totalSelected < selectionCount) {
+        selected[item.id] = item;
+        totalSelected++;
+      } else {
+        break;
       }
     }
-    const fetchMissing = await Promise.all(
-      missingPages.map(page => retrieveArtworks(page))
-    );
+  }
 
-    const newCache = { ...pageCache };
-    fetchMissing.forEach((res, index) => {
-      const page = missingPages[index];
-      newCache[page] = res.data;
-    });
+  setSelectedItems(selected);
+};
 
-    setPageCache(newCache);
-
-    const fullList = Object.keys(newCache)
-      .map(Number)
-      .sort((a, b) => a - b)
-      .flatMap(page => newCache[page]);
-
-    setSelected(fullList.slice(0, count));
-  };
 
   return (
     <div className="card">
-      <h4>Selected Items: {selected.length}</h4>
-
-      <div className="flex align-items-center gap-2 mb-3">
-        <span>Select Count:</span>
-        <InputText
+      <div className="flex gap-3 align-items-center mb-3">
+        <Button label="Select Rows" onClick={handleAutoSelect} />
+        <InputNumber
+          value={selectionCount ?? undefined}
+          onValueChange={(e) => setSelectionCount(e.value?? null)}
           placeholder="Enter Value"
-          value={selectCount}
-          onChange={(e) => setSelectCount(e.target.value)}
-          style={{ width: '100px' }}
         />
-        <Button
-          label="Apply"
-          icon="pi pi-check"
-          onClick={handleSelect}
-          severity="success"
-        />
+        
+        <span>Selected: {Object.keys(selectedItems).length}</span>
       </div>
+
+      {/* Artwork Table */}
       <DataTable
-        value={artList}
+        value={entries}
         paginator
-        rows={items_in_page}
-        totalRecords={total}
+        rows={itemsPerPage}
+        totalRecords={totalItems}
         lazy
-        first={currentPage * items_in_page}
-        onPage={(e: { page: SetStateAction<number>; }) => setCurrentPage(e.page)}
+        first={currentPage * itemsPerPage}
+        onPage={(e: any) => {
+          if (e.page !== undefined) setCurrentPage(e.page);
+        }}
         dataKey="id"
-        selection={selected}
-        onSelectionChange={(e: { value: SetStateAction<ArtData[]>; }) => setSelected(e.value)}
+        selection={getSelectedEntries()}
+        onSelectionChange={handleRowSelect}
       >
         <Column selectionMode="multiple" headerStyle={{ width: '3em' }} />
         <Column field="title" header="Title" />
@@ -107,17 +116,18 @@ const ArtworkGrid = () => {
         <Column field="date_start" header="Start Year" />
         <Column field="date_end" header="End Year" />
       </DataTable>
-      {selected.length > 0 && (
-        <div className="mt-3">
-          <h5>Selected Titles</h5>
-          <ul>
-            {selected.map((item) => (
-              <li key={item.id}>{item.title}</li>
-            ))}
-          </ul>
-        </div>
-      )}
+
+      {/* Selection Summary */}
+      <div className="mt-4">
+        <h5>Selected Artworks</h5>
+        <ul>
+          {Object.values(selectedItems).map((item) => (
+            <li key={item.id}>{item.title}</li>
+          ))}
+        </ul>
+      </div>
     </div>
   );
 };
+
 export default ArtworkGrid;
