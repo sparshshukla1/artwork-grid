@@ -15,8 +15,6 @@ const ArtworkGrid = () => {
   const [totalItems, setTotalItems] = useState(0);
   const [selectedItems, setSelectedItems] = useState<Record<number, ArtData>>({});
   const [selectionCount, setSelectionCount] = useState<number | null>(null);
-
-  // Fetch artworks whenever the page changes
   useEffect(() => {
     loadPage(currentPage + 1);
   }, [currentPage]);
@@ -39,11 +37,7 @@ for (const item of response.data) {
   const handleRowSelect = (e: any) => {
     const updated = { ...selectedItems };
     const currentIds = entries.map((item) => item.id);
-
-    // Remove selections from current page
     currentIds.forEach((id) => delete updated[id]);
-
-    // Add newly selected items
     if (Array.isArray(e.value)) {
       e.value.forEach((item: ArtData) => {
         updated[item.id] = item;
@@ -92,8 +86,6 @@ const handleAutoSelect = async () => {
         
         <span>Selected: {Object.keys(selectedItems).length}</span>
       </div>
-
-      {/* Artwork Table */}
       <DataTable
         value={entries}
         paginator
@@ -107,6 +99,7 @@ const handleAutoSelect = async () => {
         dataKey="id"
         selection={getSelectedEntries()}
         onSelectionChange={handleRowSelect}
+         selectionMode="multiple"  
       >
         <Column selectionMode="multiple" headerStyle={{ width: '3em' }} />
         <Column field="title" header="Title" />
@@ -116,8 +109,6 @@ const handleAutoSelect = async () => {
         <Column field="date_start" header="Start Year" />
         <Column field="date_end" header="End Year" />
       </DataTable>
-
-      {/* Selection Summary */}
       <div className="mt-4">
         <h5>Selected Artworks</h5>
         <ul>
