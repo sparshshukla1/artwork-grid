@@ -66,31 +66,33 @@ const ArtworkGrid = () => {
           Select Top N on Page
         </button>
       </form>
+<DataTable
+  value={entries}
+  paginator
+  rows={itemsPerPage}
+  totalRecords={totalItems}
+  lazy
+  first={currentPage * itemsPerPage}
+  onPage={(e) => setCurrentPage(e.page ?? 0)}
+  dataKey="id"
+  selection={getCurrentPageSelection()}
+  onSelectionChange={handleSelectionChange}
+  selectionMode="multiple"  // ✅ THIS IS MANDATORY HERE
+>
+  <Column
+    selectionMode="multiple"
+    headerStyle={{ width: '3em' }}
+    {...({ showSelectAll: true } as any)}
+  />
+  <Column field="title" header="Title" />
+  <Column field="place_of_origin" header="Origin" />
+  <Column field="artist_display" header="Artist" />
+  <Column field="inscriptions" header="Notes" />
+  <Column field="date_start" header="Start Year" />
+  <Column field="date_end" header="End Year" />
+</DataTable>
 
-      <DataTable
-        value={entries}
-        paginator
-        rows={itemsPerPage}
-        totalRecords={totalItems}
-        lazy
-        first={currentPage * itemsPerPage}
-        onPage={(e: any) => setCurrentPage(e.page ?? 0)}
-        dataKey="id"
-        selection={getCurrentPageSelection()}
-        onSelectionChange={handleSelectionChange}
-      >
-        <Column
-          selectionMode="multiple"
-          headerStyle={{ width: '3em' }}
-          {...({ showSelectAll: true } as any)}
-        />
-        <Column field="title" header="Title" />
-        <Column field="place_of_origin" header="Origin" />
-        <Column field="artist_display" header="Artist" />
-        <Column field="inscriptions" header="Notes" />
-        <Column field="date_start" header="Start Year" />
-        <Column field="date_end" header="End Year" />
-      </DataTable>
+
 
       <div style={{ marginTop: '1rem' }}>
         <h5>Selected Items (Page {currentPage + 1})</h5>
