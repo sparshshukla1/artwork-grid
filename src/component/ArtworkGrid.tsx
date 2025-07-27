@@ -4,7 +4,7 @@ import { Column } from 'primereact/column';
 import { retrieveArtworks } from '../utils/fetcher';
 import type { ArtData } from '../types/artwork';
 
-const itemsPerPage = 15;
+const itemsPerPage = 10;
 
 const ArtworkGrid = () => {
   const [entries, setEntries] = useState<ArtData[]>([]);
@@ -17,10 +17,13 @@ const ArtworkGrid = () => {
     fetchPage(currentPage + 1);
   }, [currentPage]);
 
-  const fetchPage = async (page: number) => {
+  const fetchPage = async (page: number): Promise<ArtData[]> => {
     const res = await retrieveArtworks(page);
-    setEntries(res.data);
-    setTotalItems(res.pagination.total);
+    if (page === currentPage + 1) {
+      setEntries(res.data);
+      setTotalItems(res.pagination.total);
+    }
+    return res.data;
   };
 
   const getCurrentPageSelection = () =>
@@ -30,24 +33,39 @@ const ArtworkGrid = () => {
     const updated = new Map(selectedMap);
     const currentPageIds = entries.map((item) => item.id);
     currentPageIds.forEach((id) => updated.delete(id));
+
     const selectedItems = Array.isArray(e.value) ? e.value : [];
     selectedItems.forEach((item: ArtData) => {
       updated.set(item.id, item);
     });
+
     setSelectedMap(updated);
   };
 
-  const handleAutoSelect = () => {
-    const updated = new Map(selectedMap);
-    for (let i = 0; i < Math.min(autoSelectCount, entries.length); i++) {
-      const item = entries[i];
-      updated.set(item.id, item);
+  const handleAutoSelect = async () => {
+    if (autoSelectCount <= 0) return;
+
+    const newSelected = new Map<number, ArtData>();
+    let totalSelected = 0;
+    let page = 1;
+
+    while (totalSelected < autoSelectCount) {
+      const data = await retrieveArtworks(page);
+      for (const item of data.data) {
+        if (totalSelected >= autoSelectCount) break;
+        newSelected.set(item.id, item);
+        totalSelected++;
+      }
+      if (data.data.length === 0) break; // No more data
+      page++;
     }
-    setSelectedMap(updated);
+
+    setSelectedMap(newSelected);
   };
 
   return (
     <div className="card p-4">
+      <h4>Selected on Page {currentPage + 1}: {getCurrentPageSelection().length}</h4>
 
       <form
         onSubmit={(e) => {
@@ -63,49 +81,36 @@ const ArtworkGrid = () => {
           onChange={(e) => setAutoSelectCount(Number(e.target.value))}
         />
         <button type="submit" disabled={autoSelectCount <= 0}>
-          Select Top N on Page
+          Select Top N Across Pages
         </button>
       </form>
-<DataTable
-  value={entries}
-  paginator
-  rows={itemsPerPage}
-  totalRecords={totalItems}
-  lazy
-  first={currentPage * itemsPerPage}
-  onPage={(e) => setCurrentPage(e.page ?? 0)}
-  dataKey="id"
-  selection={getCurrentPageSelection()}
-  onSelectionChange={handleSelectionChange}
-  selectionMode="multiple"  // ✅ THIS IS MANDATORY HERE
->
-  <Column
-    selectionMode="multiple"
-    headerStyle={{ width: '3em' }}
-    {...({ showSelectAll: true } as any)}
-  />
-  <Column field="title" header="Title" />
-  <Column field="place_of_origin" header="Origin" />
-  <Column field="artist_display" header="Artist" />
-  <Column field="inscriptions" header="Notes" />
-  <Column field="date_start" header="Start Year" />
-  <Column field="date_end" header="End Year" />
-</DataTable>
 
+      <DataTable
+        value={entries}
+        paginator
+        rows={itemsPerPage}
+        totalRecords={totalItems}
+        lazy
+        first={currentPage * itemsPerPage}
+        onPage={(e: any) => setCurrentPage(e.page ?? 0)}
+        dataKey="id"
+        selection={getCurrentPageSelection()}
+        onSelectionChange={handleSelectionChange}
+        selectionMode="multiple"
+      >
+        <Column
+          selectionMode="multiple"
+          headerStyle={{ width: '3em' }}
+          {...({ showSelectAll: true } as any)}
+        />
+        <Column field="title" header="Title" />
+        <Column field="place_of_origin" header="Origin" />
+        <Column field="artist_display" header="Artist" />
+        <Column field="inscriptions" header="Notes" />
+        <Column field="date_start" header="Start Year" />
+        <Column field="date_end" header="End Year" />
+      </DataTable>
 
-
-      <div style={{ marginTop: '1rem' }}>
-        <h5>Selected Items (Page {currentPage + 1})</h5>
-        <ul>
-          {entries
-            .filter((item) => selectedMap.has(item.id))
-            .map((item) => (
-              <li key={item.id}>
-                <strong>ID: {item.id}</strong> — {item.title}
-              </li>
-            ))}
-        </ul>
-      </div>
     </div>
   );
 };
